@@ -232,6 +232,12 @@ textarea{width:100%;font:13px/1.3 ui-monospace,monospace;border-radius:10px;bord
 .net[hidden]{display:none}
 .wait{font-weight:800;color:#5a4a2a;font-size:1em}
 .codechip{position:absolute;bottom:1em;left:1em;background:#fff;border:2px solid var(--line);border-radius:.7em;padding:.3em .6em;font-weight:800;font-size:.75em;color:#14213d}
+.timer{width:min(320px,80%);font-weight:800;font-size:.95em;color:#3b2f1e}
+.timer i{display:block;height:.5em;border-radius:1em;background:rgba(0,0,0,.12);overflow:hidden;margin-top:.25em}
+.timer b{display:block;height:100%;background:var(--ok);transition:width 1s linear}
+.timer.low{color:#c41b1b;animation:blink 1s steps(1) infinite}.timer.low b{background:#d72828}
+@keyframes blink{50%{opacity:.55}}
+.aut{text-align:center;font-weight:800;font-size:18px;margin:12px 0 0;color:var(--bad)}
 </style>
 </head>
 <body>
@@ -253,6 +259,7 @@ textarea{width:100%;font:13px/1.3 ui-monospace,monospace;border-radius:10px;bord
   <div class="row"><label for="fp">Cagnotte au Parc gratuit (taxes et amendes)</label><input type="checkbox" id="fp" style="width:24px;height:24px;min-height:0"></div>
   <div class="row"><label for="spd">Vitesse des pions</label>
    <select id="spd"><option value="260">Lente</option><option value="170" selected>Normale</option><option value="90">Rapide</option></select></div>
+  <div class="row"><label for="tmr">Chrono par tour</label><select id="tmr"><option value="60" selected>1 minute</option><option value="90">1 min 30</option><option value="120">2 minutes</option><option value="0">Désactivé</option></select></div>
   <p id="serr" style="color:var(--bad);font-weight:800;margin:6px 0 0"></p>
   <div class="btns" style="justify-content:stretch">
    <button id="resumeBtn" class="alt" hidden style="flex:1">Reprendre la dernière partie</button>
@@ -343,6 +350,7 @@ const snd=(()=>{
   knock(){[0,.18,.36].forEach(t=>{noise(.08,.5,t,350,'lowpass');tone(140,.08,'sine',.2,t)});[523,659,784].forEach((f,i)=>tone(f,.18,'triangle',.1,.7+i*.12))},
   laugh(){const c=on&&ac();if(!c)return;[0,.16,.32,.48,.66,.84,1.04].forEach((t0,k)=>{const t=c.currentTime+t0,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();o.type='sawtooth';const f0=(k<4?240:220)-k*6;o.frequency.setValueAtTime(f0*1.25,t);o.frequency.exponentialRampToValueAtTime(f0,t+.12);f.type='bandpass';f.frequency.value=900;f.Q.value=2.5;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.35,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.13);o.connect(f).connect(g).connect(c.destination);o.start(t);o.stop(t+.16);noise(.06,.08,t0,1500,'highpass')})},
   bad(){tone(330,.25,'sawtooth',.09,0,200);tone(250,.4,'sawtooth',.09,.22,140)},
+  tick(){tone(1200,.05,'square',.07)},
   win(){[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,.25,'triangle',.16,i*.13))}
  };
 })();
@@ -514,7 +522,7 @@ function hostStart(){
  net.lobby.forEach((e,i)=>{if(e.conn){e.conn.seat=i;net.conns[i]=e.conn;send(e.conn,{t:'welcome',seat:i,code:net.code})}});
  const players=net.lobby.map((e,i)=>newPlayer(i,e.name,e.pawn,m));
  const f=+$('#lfirst').value;
- newGame(players,f,{parking:$('#lfp').checked,speed:170});
+ newGame(players,f,{parking:$('#lfp').checked,speed:170,timer:+$('#ltmr').value});
  net.started=true;showGameUI();
 }
 
@@ -544,6 +552,7 @@ function clientRecv(d){
   G=d.G;busy=d.busy;rolling=d.rolling;hopId=d.hop;net.on=d.on||[];FX=FX.concat(d.fx||[]);
   if($('#game').hidden)showGameUI();else render();return;
  }
+ if(d.t==='tm'){if(G){G.timeLeft=d.v;if(G.auction&&d.a!=null)G.auction.t=d.a;G.auto=d.auto;updTimer()}return}
  if(d.t==='ev'){if(d.e==='snd'&&snd[d.n])snd[d.n]();if(d.e==='anim'&&ANIM[d.n])ANIM[d.n](...(d.a||[]));return}
 }
 function leaveOnline(){
@@ -737,6 +746,7 @@ function finishStep(){
  if(G.over>=0||G.phase==='buy')return;
  const p=curP();
  G.phase=(G.lastDbl&&!p.inJail&&!p.bankrupt)?'roll':'end';
+ if(G.phase==='roll'&&!G.auto)G.timeLeft=G.settings.timer||0;
 }
 async function moveBy(p,n){G.phase='moving';await walk(p,n);await land(p)}
 async function doRoll(a,b){
@@ -766,7 +776,7 @@ async function rollDice(){
 }
 function nextTurn(){
  let n=G.cur;do{n=(n+1)%G.players.length}while(G.players[n].bankrupt);
- Object.assign(G,{cur:n,phase:'roll',lastDbl:false,dblCount:0,msg:null,pending:null,auction:null,offer:null});
+ Object.assign(G,{cur:n,phase:'roll',lastDbl:false,dblCount:0,msg:null,pending:null,auction:null,offer:null,auto:false,timeLeft:G.settings.timer||0});
  log(`— Au tour de ${G.players[n].name} —`);
 }
 function checkOver(){const a=alive();if(a.length===1){G.over=a[0].id;log(`🏆 ${a[0].name} remporte la partie !`);sfx('win')}}
@@ -827,9 +837,9 @@ const ACTS={
  payJail:{ok:turnOk,run(){const p=curP();if(busy||G.phase!=='roll'||!p.inJail||p.money<FINE)return;pay(p,FINE,-1,true);p.inJail=false;p.jailTurns=0;log(`${p.name} paie l’amende et sort de prison.`);render()}},
  useCard:{ok:turnOk,run(){const p=curP();if(busy||G.phase!=='roll'||!p.inJail)return;const c=p.jailCards.pop();if(!c)return;deckOf(c.t).push(c.i);p.inJail=false;p.jailTurns=0;log(`${p.name} utilise sa carte « Libéré de prison ».`);sfx('go');render()}},
  buy:{ok:turnOk,run(){if(busy||G.phase!=='buy'||G.auction)return;const p=curP(),i=G.pending,s=S[i];if(p.money<s.p)return;toBank(p,s.p);G.props[i].owner=p.id;sfx('buy');log(`${p.name} achète ${s.n} pour ${fmt(s.p)}.`);G.phase=null;G.pending=null;G.msg=null;finishStep();render()}},
- auction:{ok:turnOk,run(){if(busy||G.phase!=='buy'||G.auction)return;G.auction={i:G.pending,bid:0,who:-1};log(`Enchères ouvertes pour ${S[G.pending].n}.`);render()}},
- bid:{ok:(a,pi)=>a===pi,run(pi,x){const A=G.auction,p=G.players[pi];if(!A||!p||p.bankrupt||![100,500,1000].includes(x))return;const nb=A.bid+x;if(p.money<nb)return;A.bid=nb;A.who=pi;sfx('coin');render()}},
- sold:{ok:turnOk,run(){const A=G.auction;if(!A)return;const i=A.i;if(A.who>=0){const w=G.players[A.who];toBank(w,A.bid);G.props[i].owner=w.id;sfx('buy');log(`Enchères : ${w.name} remporte ${S[i].n} pour ${fmt(A.bid)}.`)}else log(`Enchères : personne n’achète ${S[i].n}.`);G.auction=null;G.phase=null;G.pending=null;G.msg=null;finishStep();render()}},
+ auction:{ok:turnOk,run(){if(busy||G.phase!=='buy'||G.auction)return;G.auction={i:G.pending,bid:0,who:-1,t:AU_START};log(`Enchères ouvertes pour ${S[G.pending].n}.`);render()}},
+ bid:{ok:(a,pi)=>a===pi,run(pi,x){const A=G.auction,p=G.players[pi];if(!A||!p||p.bankrupt||![100,500,1000].includes(x))return;if(A.t<=0)return;const nb=A.bid+x;if(p.money<nb)return;A.bid=nb;A.who=pi;A.t=Math.max(A.t,AU_BID);sfx('coin');render()}},
+ sold:{ok:()=>false,run(){const A=G.auction;if(!A)return;const i=A.i;if(A.who>=0){const w=G.players[A.who];toBank(w,A.bid);G.props[i].owner=w.id;sfx('buy');log(`Enchères : ${w.name} remporte ${S[i].n} pour ${fmt(A.bid)}.`)}else log(`Enchères : personne n’achète ${S[i].n}.`);G.auction=null;G.phase=null;G.pending=null;G.msg=null;finishStep();render()}},
  end:{ok:turnOk,run(){if(busy||G.phase!=='end'||negative().length||G.offer)return;nextTurn();sfx('coin');render()}},
  prop:{ok:(a,n,i)=>G.props[i]&&a===G.props[i].owner,run(n,i){if(!PACT[n]||!G.props[i]||G.over>=0)return;PACT[n](i);render()}},
  bankrupt:{ok:(a,pi)=>a===pi||(isHost()&&a===net.me&&!isOn(pi)),run(pi){const p=G.players[pi];if(!p||p.bankrupt||p.money>=0||G.over>=0)return;bankrupt(pi);render()}},
@@ -932,6 +942,7 @@ function centerHTML(){
  const meId=isOnline()?net.me:p.id;
  return `<div class="center" style="${centerBg()}">${top}
   <div class="turn">${pawnHTML(p)}Tour de <b>${esc(p.name)}</b> · ${fmt(p.money)}</div>
+  ${G.settings.timer?`<div class="timer" id="timer"><span id="timerTxt"></span><i><b id="timerBar"></b></i></div>`:''}
   <div class="dice" id="dice">${dieHTML(G.dice[0])+dieHTML(G.dice[1])}</div>${msg}<div class="acts">${acts}</div>
   <div class="sub">${meId!=null&&G.players[meId]?`<button class="sm alt" data-mod="manage" data-a="${meId}">Mes biens</button>`:''}${my?`<button class="sm alt" data-mod="trade" ${busy?'disabled':''}>Échanger</button>`:''}${meId!=null&&G.players[meId]&&!G.players[meId].bankrupt?`<button class="sm alt" data-mod="gift" data-a="${meId}" ${busy&&!isOnline()?'disabled':''}>💸 Donner de l’argent</button>`:''}</div>
   <div class="ctl">Vitesse ${[[260,'🐢 Lente'],[170,'🚶 Normale'],[90,'🐇 Rapide']].map(([v,l])=>`<button class="${STEP()===v?'on':''}" data-ui="speed" data-v="${v}">${l}</button>`).join('')}
@@ -947,7 +958,7 @@ function render(){
   +(G.settings.parking?`<small style="color:var(--muted);display:block;margin-top:6px">Cagnotte du Parc gratuit : <b>${fmt(G.pot)}</b></small>`:'');
  $('#log').innerHTML=`<h2 style="font-size:20px;margin:0 0 6px">Journal</h2>`+G.log.map(t=>`<div${t.startsWith('—')?' class="sep"':''}>${esc(t)}</div>`).join('');
  $('#saveBtn').hidden=isClient();$('#rankBtn').hidden=isClient();
- const fx=FX.splice(0);playFx(fx);
+ const fx=FX.splice(0);playFx(fx);updTimer();
  syncShared();
  if(isHost())bcast({t:'state',G,busy,rolling,hop:hopId,fx,on:onlineIds()});
  try{if(isHost())localStorage.setItem(HKEY,JSON.stringify({code:net.code,me:net.me,G}));else if(!isClient())localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}
@@ -1004,9 +1015,9 @@ function openModal(){
   h=`<h2>Faillite de ${esc(p.name)} ?</h2><p>Ses constructions sont revendues et tous ses biens vont à <b>${esc(c)}</b>. ${esc(p.name)} quitte la partie. C’est définitif.</p><div class="btns"><button class="alt" data-mod="manage" data-a="${p.id}">Annuler</button><button class="red" data-mod="doBankrupt" data-a="${p.id}">Confirmer la faillite</button></div>`;
  }else if(ctx.k==='auction'){
   const A=G.auction,s=S[A.i],cp=curP();
-  h=`<h2>Enchères : ${esc(s.n)}</h2><p style="margin:0">Valeur : ${fmt(s.p)}. Chacun surenchérit, puis ${esc(cp.name)} adjuge.</p><div class="big">${A.who>=0?`${fmt(A.bid)} — <span style="color:${G.players[A.who].color}">${esc(G.players[A.who].name)}</span>`:'Aucune offre'}</div>`
+  h=`<h2>Enchères : ${esc(s.n)}</h2><p style="margin:0">Valeur : ${fmt(s.p)}. Chaque offre relance le chrono : quand il arrive à zéro, le terrain va automatiquement à celui qui a offert le plus.</p><div class="big">${A.who>=0?`${fmt(A.bid)} — <span style="color:${G.players[A.who].color}">${esc(G.players[A.who].name)}</span>`:'Aucune offre'}</div>`
    +alive().map(p=>`<div class="au">${pawnHTML(p)}<span class="n">${esc(p.name)} <small style="color:var(--muted)">${fmt(p.money)}</small></span>${mine(p.id)?[100,500,1000].map(x=>`<button class="sm" data-mod="bid" data-a="${p.id}" data-b="${x}" ${p.money<A.bid+x?'disabled':''}>+${x}</button>`).join(''):''}</div>`).join('')
-   +`<div class="btns">${mine(G.cur)?(A.who>=0?`<button class="green" data-mod="sold">Adjugé à ${esc(G.players[A.who].name)} !</button>`:`<button class="alt" data-mod="sold">Personne n’achète</button>`):`<span class="wait">${esc(cp.name)} adjugera la vente.</span>`}</div>`;
+   +`<p class="aut" id="auT">⏱ Adjugé dans <b>${A.t}</b> s au plus offrant</p>`;
  }else if(ctx.k==='offer'){
   const o=G.offer,a=G.players[o.a],bb=G.players[o.b];
   const list=(ps,m,c)=>[...ps.map(i=>esc(S[i].n)+(G.props[i].mort?' (hyp.)':'')),m?fmt(m):'',c?c+' carte(s) prison':''].filter(Boolean).map(x=>`<li>${x}</li>`).join('')||'<li>rien</li>';
@@ -1126,6 +1137,7 @@ function lobbyUI(m){
    <div class="row"><label for="lfirst">Qui commence ?</label><select id="lfirst"><option value="-1">Tirage au sort</option>${m.list.map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('')}</select></div>
    <div class="row"><label for="lsm">Argent de départ</label><select id="lsm"><option value="10000">10 000 DH</option><option value="15000" selected>15 000 DH</option><option value="20000">20 000 DH</option></select></div>
    <div class="row"><label for="lfp">Cagnotte au Parc gratuit</label><input type="checkbox" id="lfp" style="width:24px;height:24px;min-height:0"></div>
+   <div class="row"><label for="ltmr">Chrono par tour</label><select id="ltmr"><option value="60" selected>1 minute</option><option value="90">1 min 30</option><option value="120">2 minutes</option><option value="0">Désactivé</option></select></div>
    <div class="btns" style="justify-content:stretch"><button class="alt" id="lobbyQuit">Annuler</button><button class="saf" id="lobbyStart" style="flex:1;font-size:18px" ${m.list.length<2?'disabled':''}>${m.list.length<2?'En attente d’au moins 1 ami…':'Lancer la partie'}</button></div>`
    :`<p class="wait" style="text-align:center;margin-top:16px">⏳ En attente que l’hôte lance la partie…</p><div class="btns"><button class="alt" id="lobbyQuit">Quitter</button></div>`}`;
  const keep=window.__lobbyKeep;if(keep&&isHost()){for(const id in keep){const el=$('#'+id);if(el){if(el.type==='checkbox')el.checked=keep[id];else el.value=keep[id]}}}
@@ -1134,7 +1146,7 @@ function newPlayer(i,name,pawn,money){return{id:i,name,pawn,color:PCOLORS[i],mon
 function newGame(players,first,settings){
  const props={};S.forEach((s,i)=>{if(BUYABLE(s.t))props[i]={owner:-1,houses:0,mort:false}});
  G={players,props,cur:first>=0?first:Math.floor(Math.random()*players.length),phase:'roll',dice:[3,4],lastDbl:false,dblCount:0,log:[],msg:null,pending:null,pot:0,over:-1,auction:null,offer:null,
-  settings:Object.assign({bg:0},settings),chanceDeck:shuffle(CHANCE.map((_,i)=>i)),chestDeck:shuffle(CHEST.map((_,i)=>i))};
+  settings:Object.assign({bg:0,timer:60},settings),timeLeft:settings.timer==null?60:settings.timer,auto:false,chanceDeck:shuffle(CHANCE.map((_,i)=>i)),chestDeck:shuffle(CHEST.map((_,i)=>i))};
  log(`La partie commence ! ${G.players[G.cur].name} ${first>=0?'commence':'est tiré au sort pour commencer'}.`);
  log(`— Au tour de ${G.players[G.cur].name} —`);
  sfx('go');
@@ -1145,7 +1157,7 @@ function startLocal(){
  const names=used.map((s,i)=>s.name.trim()||'Joueur '+(i+1));
  if(new Set(names.map(n=>n.toLowerCase())).size<names.length){$('#serr').textContent='Deux joueurs ont le même nom : changez-en un.';return}
  const m=+$('#sm').value;
- newGame(used.map((s,i)=>newPlayer(i,names[i],s.pawn,m)),+$('#first').value,{parking:$('#fp').checked,speed:+$('#spd').value});
+ newGame(used.map((s,i)=>newPlayer(i,names[i],s.pawn,m)),+$('#first').value,{parking:$('#fp').checked,speed:+$('#spd').value,timer:+$('#tmr').value});
  showGameUI();
 }
 
@@ -1187,8 +1199,8 @@ document.addEventListener('click',e=>{
  const c=t.closest('[data-prop]');if(c){MOD.prop(+c.dataset.prop);return}
  if(t.id==='modal'&&ctx&&!['auction','trade','bk','offer'].includes(ctx.k))closeModal();
 });
-function saveLobbyForm(){const k={};['lfirst','lsm','lfp'].forEach(id=>{const el=$('#'+id);if(el)k[id]=el.type==='checkbox'?el.checked:el.value});window.__lobbyKeep=k}
-document.addEventListener('change',e=>{const t=e.target;if(t.dataset.tt)MOD.tToggle(t.dataset.tt,+t.dataset.i);if(['lfirst','lsm','lfp'].includes(t.id))saveLobbyForm()});
+function saveLobbyForm(){const k={};['lfirst','lsm','lfp','ltmr'].forEach(id=>{const el=$('#'+id);if(el)k[id]=el.type==='checkbox'?el.checked:el.value});window.__lobbyKeep=k}
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.tt)MOD.tToggle(t.dataset.tt,+t.dataset.i);if(['lfirst','lsm','lfp','ltmr'].includes(t.id))saveLobbyForm()});
 document.addEventListener('input',e=>{const t=e.target;
  if(t.dataset.tf)MOD.tSet(t.dataset.tf,t.value);
  if(t.dataset.seat!==undefined){seats[+t.dataset.seat].name=t.value;const o=$('#first').options[+t.dataset.seat+1];if(o)o.textContent=t.value.trim()||'Joueur '+(+t.dataset.seat+1)}
@@ -1199,6 +1211,54 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Enter'&&e.target.closest&&e.target.closest('[data-prop],[data-mod]')){e.target.click();return}
  if(e.code==='Space'||e.key==='Enter'){if(e.target.matches&&e.target.matches('input,select,textarea'))return;const p=$('#primary');if(p&&!p.disabled){e.preventDefault();p.click()}}
 });
+/* ---------- Chrono par tour & enchères automatiques ---------- */
+const AU_START=12, AU_BID=8;
+const mmss=v=>Math.floor(v/60)+':'+String(v%60).padStart(2,'0');
+function updTimer(){
+ if(!G)return;
+ const el=$('#timer');
+ if(el){const tot=G.settings.timer||60,v=Math.max(0,G.timeLeft||0);
+  $('#timerTxt').textContent=G.auto?'⏰ Temps écoulé : le tour se termine automatiquement':(G.auction?'⏸ Chrono en pause (enchères)':(busy?'⏸ ':'⏱ ')+mmss(v));
+  $('#timerBar').style.width=(G.auto?0:v/tot*100)+'%';el.classList.toggle('low',!G.auto&&v<=10)}
+ const au=$('#auT');if(au&&G.auction)au.innerHTML=`⏱ Adjugé dans <b>${Math.max(0,G.auction.t)}</b> s au plus offrant`;
+}
+function settle(p){
+ for(let guard=0;guard<60&&p.money<0;guard++){
+  const s1=owned(p.id).find(i=>canSell(i));if(s1!=null){PACT.sell(s1);continue}
+  const m1=owned(p.id).find(i=>canMort(i));if(m1!=null){PACT.mort(m1);continue}
+  break;
+ }
+ if(p.money<0){log(`${p.name} ne peut plus payer.`);bankrupt(p.id)}
+}
+function closeAuction(){
+ const A=G.auction;if(!A)return;const i=A.i;
+ if(A.who>=0){const w=G.players[A.who];toBank(w,A.bid);G.props[i].owner=w.id;sfx('buy');log(`🔨 Adjugé : ${w.name} remporte ${S[i].n} pour ${fmt(A.bid)} (meilleure offre).`)}
+ else log(`🔨 Enchères : personne n’achète ${S[i].n}.`);
+ G.auction=null;G.phase=null;G.pending=null;G.msg=null;finishStep();render();
+}
+function autoStep(){
+ const p=curP();
+ if(G.offer){G.offer=null;log('Échange annulé (temps écoulé).')}
+ if(G.phase==='roll'){if(negative().length){negative().forEach(settle);render();return}rollDice();return}
+ if(G.phase==='buy'){log(`${p.name} n’a pas décidé à temps : le terrain part aux enchères.`);ACTS.auction.run();return}
+ if(G.phase==='end'){negative().forEach(settle);if(G.over<0&&!G.players[G.cur].bankrupt&&G.phase==='end')nextTurn();sfx('coin');render()}
+}
+function tick(){
+ if(!G||isClient()||G.over>=0||$('#game').hidden)return;
+ if(G.auction){
+  if(busy)return;
+  G.auction.t--;if(G.auction.t<=3&&G.auction.t>0)sfx('tick');
+  if(G.auction.t<=0){closeAuction();return}
+  updTimer();bcast({t:'tm',v:G.timeLeft,a:G.auction.t,auto:G.auto});return;
+ }
+ if(!G.settings.timer||busy)return;
+ if(G.auto){autoStep();return}
+ G.timeLeft--;
+ if(G.timeLeft<=10&&G.timeLeft>0)sfx('tick');
+ if(G.timeLeft<=0){G.auto=true;log(`⏰ Temps écoulé pour ${curP().name} : son tour se termine automatiquement.`);sfx('bad');render();return}
+ updTimer();bcast({t:'tm',v:G.timeLeft,auto:G.auto});
+}
+setInterval(tick,1000);
 window.addEventListener('pagehide',()=>{try{net.host&&net.host.close()}catch(e){}});
 window.addEventListener('beforeunload',e=>{if(isHost()&&net.started&&G&&G.over<0){e.preventDefault();e.returnValue=''}});
 window.__souk={get G(){return G},net,doRoll,act,runAct,finishStep};
