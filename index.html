@@ -243,6 +243,24 @@ textarea{width:100%;font:13px/1.3 ui-monospace,monospace;border-radius:10px;bord
 .sticker.magic .bub{left:50%;top:auto;bottom:-70px;transform:translateX(-50%) rotate(-3deg);color:#6b2bbd;font-size:21px;text-align:center;line-height:1.1;white-space:nowrap}
 .sticker.magic .bub::after{left:50%;bottom:auto;top:-16px;border-top-color:transparent;border-bottom-color:#14213d}
 @keyframes float{0%{transform:translateY(0) rotate(-3deg)}100%{transform:translateY(-10px) rotate(3deg)}}
+.tk .pawn.mv{animation-duration:var(--st,170ms);animation-timing-function:ease-in-out;z-index:4}
+.mv0{animation-name:m-shoe}.mv1{animation-name:m-camel}.mv2{animation-name:m-tea}.mv3{animation-name:m-tajine}.mv4{animation-name:m-lantern;transform-origin:50% 0}
+.mv5{animation-name:m-taxi}.mv6{animation-name:m-boat}.mv7{animation-name:m-cat}.mv8{animation-name:m-palm;transform-origin:50% 100%}.mv9{animation-name:m-moto}.mv10{animation-name:m-orange}.mv11{animation-name:m-turtle}
+@keyframes m-shoe{0%{transform:rotate(-20deg) translateY(-8px)}60%{transform:rotate(8deg)}100%{transform:none}}
+@keyframes m-camel{0%{transform:translate(-4px,0) rotate(-9deg)}35%{transform:translate(0,-9px) rotate(0)}70%{transform:translate(4px,-2px) rotate(9deg)}100%{transform:none}}
+@keyframes m-tea{0%{transform:rotate(-16deg)}40%{transform:rotate(14deg) translateY(-4px)}75%{transform:rotate(-7deg)}100%{transform:none}}
+@keyframes m-tajine{0%{transform:scale(1.25,.7)}45%{transform:scale(.85,1.2) translateY(-10px)}80%{transform:scale(1.1,.9)}100%{transform:none}}
+@keyframes m-lantern{0%{transform:rotate(-28deg)}50%{transform:rotate(22deg)}100%{transform:none}}
+@keyframes m-taxi{0%{transform:translateX(-10px) skewX(-12deg)}50%{transform:translateY(-4px) skewX(6deg)}100%{transform:none}}
+@keyframes m-boat{0%{transform:rotate(-16deg) translateY(3px)}50%{transform:rotate(14deg) translateY(-5px)}100%{transform:none}}
+@keyframes m-cat{0%{transform:scale(1.15,.8)}40%{transform:translateY(-16px) scale(.9,1.15) rotate(-8deg)}100%{transform:none}}
+@keyframes m-palm{0%{transform:rotate(-18deg)}50%{transform:rotate(16deg)}100%{transform:none}}
+@keyframes m-moto{0%{transform:rotate(-16deg) translateX(-3px)}20%{transform:rotate(-14deg) translateX(3px)}40%{transform:rotate(-10deg) translateX(-3px)}60%{transform:rotate(-4deg) translateX(2px)}100%{transform:none}}
+@keyframes m-orange{0%{transform:rotate(-360deg) translateY(-6px)}100%{transform:none}}
+@keyframes m-turtle{0%{transform:scaleX(1.25) translateX(-4px)}60%{transform:scaleX(.9)}100%{transform:none}}
+.pawns button.on .emo,.pawns button.on{animation:pick .5s ease-out}
+@keyframes pick{0%{transform:scale(1.35) rotate(-12deg)}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.tk .pawn.mv{animation:none}}
 </style>
 </head>
 <body>
@@ -356,6 +374,35 @@ const snd=(()=>{
   laugh(){const c=on&&ac();if(!c)return;[0,.16,.32,.48,.66,.84,1.04].forEach((t0,k)=>{const t=c.currentTime+t0,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();o.type='sawtooth';const f0=(k<4?240:220)-k*6;o.frequency.setValueAtTime(f0*1.25,t);o.frequency.exponentialRampToValueAtTime(f0,t+.12);f.type='bandpass';f.frequency.value=900;f.Q.value=2.5;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.35,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.13);o.connect(f).connect(g).connect(c.destination);o.start(t);o.stop(t+.16);noise(.06,.08,t0,1500,'highpass')})},
   bad(){tone(330,.25,'sawtooth',.09,0,200);tone(250,.4,'sawtooth',.09,.22,140)},
   magic(){[1047,1319,1568,2093,2637,3136].forEach((f,i)=>tone(f,.35,'sine',.09,i*.07));tone(400,1.1,'triangle',.08,0,1600);noise(.6,.08,.05,5000,'highpass');[2637,3136,3520,2637,3951].forEach((f,i)=>tone(f,.25,'sine',.05,.6+i*.11));tone(784,.5,'sine',.07,1.25,1568)},
+  pstep(i,k){
+   const first=k===0;
+   switch(i){
+    case 0: noise(.05,.35,0,500,'lowpass');tone(260,.05,'triangle',.12);noise(.03,.25,.06,900,'lowpass');break; // babouche : flap flap
+    case 1: noise(.09,.55,0,220,'lowpass');tone(80,.12,'sine',.3); // chameau : pas lourd
+     if(first||k%4===3){[0,.1,.2,.32].forEach((t,j)=>tone(120-j*8,.14,'sawtooth',.09,t,70));noise(.45,.12,0,400,'bandpass')} break; // grognement
+    case 2: tone(2600,.09,'sine',.1);tone(3500,.06,'sine',.06,.02); // verre qui tinte
+     if(first){noise(.55,.12,.05,1600,'bandpass');[0,.12,.24,.36].forEach(t=>tone(500+Math.random()*200,.06,'sine',.08,t+.08))} break; // on verse le thé
+    case 3: tone(1900,.06,'triangle',.1);tone(2700,.05,'triangle',.06,.03); // couvercle
+     if(first)for(let j=0;j<7;j++)tone(180+Math.random()*220,.05,'sine',.12,j*.07); break; // ça mijote
+    case 4: tone(1568,.18,'triangle',.08);tone(2093,.22,'sine',.05,.05); // lanterne qui tinte
+     if(first)[1319,1568,1760,2093,2349].forEach((f,j)=>tone(f,.3,'sine',.06,j*.08)); break;
+    case 5: tone(70,.09,'square',.12);noise(.06,.15,0,300,'lowpass'); // moteur
+     if(first){tone(440,.18,'square',.08);tone(554,.18,'square',.08);tone(440,.25,'square',.08,.22);tone(554,.25,'square',.08,.22)} break; // klaxon
+    case 6: noise(.15,.3,0,700,'bandpass');tone(140,.12,'sine',.08); // plouf
+     if(first){noise(.8,.18,0,500,'lowpass');tone(220,.4,'sawtooth',.03,.2,180)} break; // vagues + grincement
+    case 7: noise(.025,.2,0,3000); // pattes de velours
+     if(first){tone(650,.18,'sawtooth',.05,0,1100);tone(1100,.3,'sawtooth',.05,.18,550);tone(650,.18,'sine',.12,0,1100);tone(1100,.32,'sine',.12,.18,520)} break; // miaou
+    case 8: noise(.12,.18,0,3200,'bandpass'); // feuilles
+     if(first)noise(.9,.16,0,700,'bandpass'); break; // vent
+    case 9: tone(110,.1,'sawtooth',.1,0,140);noise(.05,.1,0,1200); // pétarade
+     if(first){tone(70,.6,'sawtooth',.12,0,230);tone(140,.6,'square',.04,0,460)} break; // ça démarre
+    case 10: tone(280,.12,'sine',.18,0,620); // boing
+     if(first)noise(.4,.12,0,2000,'bandpass'); break;
+    case 11: noise(.1,.3,0,160,'lowpass');tone(60,.15,'sine',.2); // pas lent
+     if(first)tone(500,.08,'sine',.12,.05,900); break; // la tête sort
+    default: tone(600,.06,'triangle',.16);
+   }
+  },
   tick(){tone(1200,.05,'square',.07)},
   win(){[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,.25,'triangle',.16,i*.13))}
  };
@@ -441,7 +488,7 @@ const send=(c,m)=>{try{if(c&&c.open)c.send(m)}catch(e){}};
 const bcast=m=>{if(isHost())Object.values(net.conns).forEach(c=>send(c,m))};
 const onlineIds=()=>isHost()?[net.me,...Object.keys(net.conns).map(Number)]:net.on;
 const isOn=pid=>!isOnline()||onlineIds().includes(pid);
-function sfx(n){snd[n]();bcast({t:'ev',e:'snd',n})}
+function sfx(n,...a){snd[n](...a);bcast({t:'ev',e:'snd',n,a})}
 function act(type,...args){
  if(isClient()){send(net.host,{t:'act',type,args});return}
  runAct(type,args,isHost()?net.me:null);
@@ -559,7 +606,7 @@ function clientRecv(d){
   if($('#game').hidden)showGameUI();else render();return;
  }
  if(d.t==='tm'){if(G){G.timeLeft=d.v;if(G.auction&&d.a!=null)G.auction.t=d.a;G.auto=d.auto;updTimer()}return}
- if(d.t==='ev'){if(d.e==='snd'&&snd[d.n])snd[d.n]();if(d.e==='anim'&&ANIM[d.n])ANIM[d.n](...(d.a||[]));return}
+ if(d.t==='ev'){if(d.e==='snd'&&snd[d.n])snd[d.n](...(Array.isArray(d.a)?d.a:[]));if(d.e==='anim'&&ANIM[d.n])ANIM[d.n](...(d.a||[]));return}
 }
 function leaveOnline(){
  try{Object.values(net.conns).forEach(c=>c.close())}catch(e){}
@@ -716,7 +763,7 @@ async function walk(p,n){
  for(let k=0;k<Math.abs(n);k++){
   p.pos=(p.pos+dir+40)%40;hopId=p.id;
   if(dir>0&&p.pos===0){log(`${p.name} passe par Départ : +${fmt(GO)}.`);gain(p,GO,'go');sfx('go')}
-  sfx('step');render();await sleep(STEP());
+  sfx('pstep',p.pawn,k);render();await sleep(STEP());
  }
  hopId=-1;
 }
@@ -927,7 +974,7 @@ function cellHTML(i){
  if(st&&st.owner>=0){k+=' owned';style+=`--oc:${G.players[st.owner].color};`;if(st.mort)k+=' mort'}
  const here=G.players.filter(p=>!p.bankrupt&&p.pos===i&&p.id!==hideId);
  if(here.some(p=>p.id===G.cur)&&G.over<0)k+=' here';
- const pw=p=>pawnHTML(p,p.id===hopId?'hop':(p.id===G.cur&&G.over<0&&!busy?'cur':''));
+ const pw=p=>pawnHTML(p,p.id===hopId?'mv mv'+p.pawn:(p.id===G.cur&&G.over<0&&!busy?'cur':''));
  let tk=here.filter(p=>!(i===10&&p.inJail)).map(pw).join('');
  if(i===10){k+=' jail';band=`<div class="bars">${here.filter(p=>p.inJail).map(pw).join('')}</div>`}
  const click=BUYABLE(s.t)?` data-prop="${i}" tabindex="0" role="button" aria-label="${esc(s.n)}"`:'';
@@ -970,6 +1017,7 @@ function centerHTML(){
 }
 function render(){
  if(!G)return;
+ $('#board').style.setProperty('--st',Math.max(120,STEP()+40)+'ms');
  $('#board').innerHTML=S.map((_,i)=>cellHTML(i)).join('')+centerHTML();
  $('#players').innerHTML=`<h2 style="font-size:22px;margin:0 0 6px">Joueurs</h2>`+G.players.map(p=>{
   const chips=owned(p.id).map(i=>`<span class="chip" style="background:${S[i].g?GROUPS[S[i].g].c:'#777'};${G.props[i].mort?'opacity:.35':''}" title="${esc(S[i].n)}"></span>`).join('');
@@ -1195,9 +1243,9 @@ document.addEventListener('click',e=>{
  const t=e.target;
  const md=t.closest('[data-mode]');if(md){mode=md.dataset.mode;modeUI();return}
  const cnt=t.closest('[data-count]');if(cnt){nPlayers=+cnt.dataset.count;setupUI();return}
- const pk=t.closest('[data-pick]');if(pk&&!pk.disabled){seats[+pk.dataset.pick].pawn=+pk.dataset.k;snd.coin();setupUI();return}
- const op=t.closest('[data-opick]');if(op){net.myPawn=+op.dataset.opick;snd.coin();onlineUI();return}
- const lp=t.closest('[data-lpick]');if(lp&&!lp.disabled){const k=+lp.dataset.lpick;net.myPawn=k;snd.coin();if(isHost()){net.lobby[0].pawn=k;saveLobbyForm();refreshLobby()}else send(net.host,{t:'pawn',k});return}
+ const pk=t.closest('[data-pick]');if(pk&&!pk.disabled){seats[+pk.dataset.pick].pawn=+pk.dataset.k;snd.pstep(+pk.dataset.k,0);setupUI();return}
+ const op=t.closest('[data-opick]');if(op){net.myPawn=+op.dataset.opick;snd.pstep(net.myPawn,0);onlineUI();return}
+ const lp=t.closest('[data-lpick]');if(lp&&!lp.disabled){const k=+lp.dataset.lpick;net.myPawn=k;snd.pstep(k,0);if(isHost()){net.lobby[0].pawn=k;saveLobbyForm();refreshLobby()}else send(net.host,{t:'pawn',k});return}
  if(t.id==='rehostBtn'){let hs=null;try{hs=JSON.parse(localStorage.getItem(HKEY))}catch(e){}if(hs)hostResume(hs);return}
  if(t.id==='copyLink'){const i=$('#lobbyLink');i.select();navigator.clipboard?.writeText(i.value).then(()=>{t.textContent='Copié ✔'},()=>{t.textContent='Ctrl+C'});return}
  if(t.id==='lobbyStart'){hostStart();return}
